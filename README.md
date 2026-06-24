@@ -1,49 +1,73 @@
-# Avast Removal Script for Atera
+# Avast Complete Removal for Atera
 
-`Remove-Avast-Atera-v2.ps1` silently removes supported Avast consumer antivirus products from Windows laptops when deployed through Atera.
+`Avast-Complete-Removal-Atera.ps1` is a single-run Windows PowerShell script for Atera.
+
+It targets:
+
+- Avast Free Antivirus
+- Avast One
+- Avast Premium Security and other Avast antivirus variants
+- Avast Secure Browser
+- Avast Update Helper
+- Other Avast-branded applications that expose a registered Windows uninstaller
 
 ## How it works
 
-- Runs unattended with no menus or user prompts.
-- Designed to run as **System** or an administrator.
-- Applies a process-level PowerShell execution-policy bypass.
-- Relaunches in 64-bit PowerShell when required.
-- Uses Avast's installed silent uninstaller.
-- Falls back to the registered Windows uninstall command if needed.
-- Removes remaining Avast Antivirus folders after a successful uninstall.
-- Does not automatically restart the laptop unless `-Restart` is supplied.
+- Runs unattended as **System** or an administrator.
+- Detects Avast products from both 32-bit and 64-bit uninstall registry views.
+- Detects loaded-user uninstall entries.
+- Uses Avast's installed `Instup.exe` engine with:
+
+```text
+/control_panel /instop:uninstall /silent /wait
+```
+
+- Adds `SilentUninstallEnabled=1` to the nearby `Stats.ini` file.
+- Uses registered quiet uninstall commands for separate Avast applications.
+- Uses Chromium uninstall switches for Avast Secure Browser.
+- Verifies that Avast uninstall entries are gone before deleting residual folders.
+- Does not report success while Avast is still registered.
 
 ## Atera deployment
 
-1. Upload `Remove-Avast-Atera-v2.ps1` to Atera.
-2. Set the script to run as **System**.
-3. Run it with no parameters for silent removal without a restart.
+1. Download `Avast-Complete-Removal-Atera.ps1` directly from this repository.
+2. Upload the `.ps1` file to Atera.
+3. Configure it to run as **System**.
+4. Run it with no parameters.
 
-Optional restart:
+Optional automatic restart:
 
 ```powershell
 -Restart
 ```
 
-## Logs
+## Logs and status
 
-Logs are written to:
+Logs:
 
 ```text
-C:\ProgramData\AteraScriptLogs
+C:\ProgramData\AteraScriptLogs\AvastRemoval-*.log
+```
+
+Latest status:
+
+```text
+C:\ProgramData\AteraScriptLogs\AvastRemoval-LastStatus.txt
 ```
 
 ## Exit codes
 
 | Code | Meaning |
 |---:|---|
-| 0 | Avast removed successfully or was not installed |
-| 1 | Avast still appears installed after removal attempts |
+| 0 | Avast removed successfully, or Avast was not detected |
+| 1 | Avast remains registered after the uninstall attempts |
+| 5 | Avast remains and Self-Defense was detected |
 | 10 | Administrator/System rights were not available |
 | 20 | Unexpected script error |
+| 3010 | Avast is unregistered, but Windows must restart to unload remaining components |
 
-## Notes
+## Important notes
 
-- A restart is recommended after removal so any remaining Avast drivers can unload.
-- The script targets Avast antivirus products and does not intentionally remove Avast Secure Browser, Cleanup, VPN, Driver Updater, AntiTrack, or Password products.
-- The built-in bypass handles normal PowerShell execution-policy restrictions. It cannot override AppLocker, WDAC, or a policy that prevents PowerShell from starting.
+- The script never edits Avast's Self-Defense registry value. It detects the setting and reports when it may be blocking removal.
+- Avast One may still require Avast Clear in Safe Mode when its normal installed uninstaller refuses unattended removal.
+- Test on a small device group before wider deployment.
