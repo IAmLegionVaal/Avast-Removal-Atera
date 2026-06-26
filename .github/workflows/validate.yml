@@ -1,0 +1,50 @@
+name: Validate Avast Removal Tool
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  validate:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Validate required files and supported command
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $scriptPath = 'Avast-Complete-Removal-Atera-v8.ps1'
+
+          if (-not (Test-Path -LiteralPath 'README.md' -PathType Leaf)) {
+              throw 'README.md is missing.'
+          }
+          if (-not (Test-Path -LiteralPath $scriptPath -PathType Leaf)) {
+              throw "$scriptPath is missing."
+          }
+
+          $content = Get-Content -LiteralPath $scriptPath -Raw
+          if ($content -notmatch [regex]::Escape('/instop:uninstall /silent')) {
+              throw 'The documented Avast uninstall command is missing.'
+          }
+          if ($content -match '/control_panel|/wait') {
+              throw 'An undocumented Avast command-line switch is present.'
+          }
+          if ($content -match 'Remove-Item.+Avast|Unregister-ScheduledTask|Remove-AppxPackage') {
+              throw 'The script contains unsupported residual-deletion behavior.'
+          }
+
+          $tokens = $null
+          $errors = $null
+          [System.Management.Automation.Language.Parser]::ParseFile(
+              (Resolve-Path $scriptPath),
+              [ref]$tokens,
+              [ref]$errors
+          ) | Out-Null
+          if ($errors.Count -gt 0) {
+              $errors | ForEach-Object { Write-Error $_ }
+              throw 'PowerShell parser validation failed.'
+          }
